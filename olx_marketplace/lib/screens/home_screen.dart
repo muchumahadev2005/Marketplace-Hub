@@ -7,6 +7,8 @@ import '../core/constants.dart';
 import '../data/mock_data.dart';
 import '../models/ad.dart';
 import '../services/ad_repository.dart';
+import '../services/category_service.dart';
+import '../services/favorite_service.dart';
 import '../widgets/olx_app_bar.dart';
 import '../widgets/location_bar.dart';
 import '../widgets/category_card.dart';
@@ -35,6 +37,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // Which bottom nav tab is active (0 = HOME)
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load real data from backend on first open
+    AdRepository.instance.loadHomeData();
+    CategoryService.instance.loadCategories();
+    FavoriteService.instance.loadFavorites();
+  }
 
   void _openPostAd() async {
     final result = await Navigator.push<bool>(
@@ -108,7 +119,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // ── Current screen body ───────────────────────
       body: ListenableBuilder(
-        listenable: AdRepository.instance,
+        listenable: Listenable.merge([
+          AdRepository.instance,
+          CategoryService.instance,
+        ]),
         builder: (context, _) => _buildBody(),
       ),
     );
@@ -144,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _Section(
               header: SectionHeader(
                 title: 'Browse Categories',
-                count: '${MockData.categories.length}',
+                count: '${CategoryService.instance.categories.length}',
                 onSeeMore: () {
                   Navigator.push(
                     context,
@@ -324,15 +338,18 @@ class _CategoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final list = CategoryService.instance.categories.isNotEmpty
+        ? CategoryService.instance.categories
+        : MockData.categories;
     return SizedBox(
       height: 96,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        itemCount: MockData.categories.length,
+        itemCount: list.length,
         separatorBuilder: (context, index) => const SizedBox(width: 16),
         itemBuilder: (context, index) {
-          final cat = MockData.categories[index];
+          final cat = list[index];
           return CategoryCard(
             category: cat,
             onTap: () {

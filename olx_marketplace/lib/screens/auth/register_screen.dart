@@ -24,7 +24,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    AuthService.instance.addListener(_onAuthChanged);
+  }
+
+  void _onAuthChanged() {
+    if (AuthService.instance.isAuthenticated && mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
+  @override
   void dispose() {
+    AuthService.instance.removeListener(_onAuthChanged);
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();

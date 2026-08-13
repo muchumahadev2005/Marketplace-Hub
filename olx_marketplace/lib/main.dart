@@ -6,16 +6,18 @@ import 'screens/auth/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait orientation (matches the Figma mobile design)
+  // Restore JWT token from SharedPreferences (keeps user logged in)
+  await AuthService.instance.init();
+
+  // Lock to portrait orientation (matches the OLX mobile design)
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Use a light status bar (dark icons on white app bar)
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../models/ad.dart';
 import '../services/ad_repository.dart';
+import '../services/favorite_service.dart';
+import '../services/chat_service.dart';
 import 'chat_screen.dart';
 import 'map_view_screen.dart';
 
@@ -26,7 +28,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    _isFavorite = widget.product.isFavorite;
+    _isFavorite = FavoriteService.instance.isFavorite(widget.product.id);
   }
 
   @override
@@ -66,9 +68,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     _isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: _isFavorite ? Colors.red : AppColors.textPrimary,
                   ),
-                  onPressed: () {
+                  onPressed: () async {
+                    final newFav = await FavoriteService.instance.toggleFavorite(product.id);
                     setState(() {
-                      _isFavorite = !_isFavorite;
+                      _isFavorite = newFav;
                     });
                     AdRepository.instance.toggleFavorite(product.id);
                   },
@@ -319,17 +322,32 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   ),
                   icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
                   label: const Text('Chat Seller', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          chatId: 'chat_${product.id}',
-                          userName: product.sellerName,
-                          productName: product.title,
-                        ),
-                      ),
+                  onPressed: () async {
+                    // Show loading
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Starting chat...'), duration: Duration(milliseconds: 1500)),
                     );
+                    final room = await ChatService.instance.getOrCreateRoom(product.id);
+                    if (room != null) {
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              chatId: room.id,
+                              userName: room.otherUserName,
+                              productName: room.adTitle,
+                            ),
+                          ),
+                        );
+                      }
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not start chat. Are you logged in?')),
+                        );
+                      }
+                    }
                   },
                 ),
               ),

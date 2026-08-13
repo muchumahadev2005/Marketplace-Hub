@@ -6,6 +6,7 @@ import '../data/mock_data.dart';
 import '../models/ad.dart';
 import '../models/location_data.dart';
 import '../services/ad_repository.dart';
+import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import 'location_screen.dart';
 import 'map_picker_screen.dart';
@@ -41,6 +42,7 @@ class _PostAdScreenState extends State<PostAdScreen> {
   late TextEditingController _brandController;
   late TextEditingController _modelController;
   late TextEditingController _additionalDetailsController;
+  late TextEditingController _phoneController;
 
   String? _selectedCondition;
   String? _selectedReason;
@@ -69,6 +71,9 @@ class _PostAdScreenState extends State<PostAdScreen> {
     _brandController = TextEditingController(text: edit?.brand ?? '');
     _modelController = TextEditingController(text: edit?.model ?? '');
     _additionalDetailsController = TextEditingController(text: edit?.additionalDetails ?? '');
+    
+    final currentUser = AuthService.instance.currentUser;
+    _phoneController = TextEditingController(text: edit?.sellerPhone ?? currentUser?.phone ?? '');
 
     _selectedCondition = edit?.condition;
     _selectedReason = edit?.reasonForSelling;
@@ -95,6 +100,7 @@ class _PostAdScreenState extends State<PostAdScreen> {
     _brandController.dispose();
     _modelController.dispose();
     _additionalDetailsController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -137,47 +143,74 @@ class _PostAdScreenState extends State<PostAdScreen> {
     }
   }
 
-  void _saveAdAndComplete() {
+  bool _isSaving = false;
+
+  Future<void> _saveAdAndComplete() async {
+    if (_isSaving) return;
+    setState(() {
+      _isSaving = true;
+    });
+
     final double price = double.tryParse(_priceController.text.trim()) ?? 0.0;
     final mainImage = _selectedPhotos.isNotEmpty
         ? _selectedPhotos[0]
         : 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80';
 
-    final adToSave = Ad(
-      id: widget.adToEdit?.id ?? 'ad_${DateTime.now().millisecondsSinceEpoch}',
-      title: _titleController.text.trim(),
-      price: price,
-      currency: '₹',
-      imageUrl: mainImage,
-      images: _selectedPhotos.isNotEmpty ? List.from(_selectedPhotos) : [mainImage],
-      condition: _selectedCondition ?? 'Used',
-      rating: widget.adToEdit?.rating ?? '10/10',
-      location: _selectedLocation,
-      latitude: _selectedLatitude ?? LocationService.instance.selectedLocation.latitude,
-      longitude: _selectedLongitude ?? LocationService.instance.selectedLocation.longitude,
-      date: widget.adToEdit != null ? widget.adToEdit!.date : 'Just now',
-      isFeatured: widget.adToEdit?.isFeatured ?? true,
-      category: _selectedCategory?.name.replaceAll('\n', ' ') ?? 'Mobiles',
-      subcategory: _selectedSubcategory,
-      description: _descController.text.trim(),
-      brand: _brandController.text.trim().isEmpty ? null : _brandController.text.trim(),
-      model: _modelController.text.trim().isEmpty ? null : _modelController.text.trim(),
-      reasonForSelling: _selectedReason,
-      additionalDetails: _additionalDetailsController.text.trim().isEmpty ? null : _additionalDetailsController.text.trim(),
-      sellerName: widget.adToEdit?.sellerName ?? 'John Doe',
-      sellerPhone: widget.adToEdit?.sellerPhone ?? '+91 9876543210',
-      sellerImage: widget.adToEdit?.sellerImage ??
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80',
-      createdAt: widget.adToEdit?.createdAt ?? DateTime.now(),
-      status: widget.adToEdit?.status ?? 'active',
-      isFavorite: widget.adToEdit?.isFavorite ?? false,
-      userId: widget.adToEdit?.userId ?? 'current_user',
-    );
-
+    bool success = false;
     if (widget.adToEdit != null) {
-      AdRepository.instance.updateAd(adToSave);
+      final adToSave = widget.adToEdit!.copyWith(
+        title: _titleController.text.trim(),
+        price: price,
+        imageUrl: mainImage,
+        images: _selectedPhotos.isNotEmpty ? List.from(_selectedPhotos) : [mainImage],
+        condition: _selectedCondition ?? 'Used',
+        location: _selectedLocation,
+        latitude: _selectedLatitude ?? LocationService.instance.selectedLocation.latitude,
+        longitude: _selectedLongitude ?? LocationService.instance.selectedLocation.longitude,
+        category: _selectedCategory?.name.replaceAll('\n', ' ') ?? 'Mobiles',
+        subcategory: _selectedSubcategory,
+        description: _descController.text.trim(),
+        brand: _brandController.text.trim().isEmpty ? null : _brandController.text.trim(),
+        model: _modelController.text.trim().isEmpty ? null : _modelController.text.trim(),
+        reasonForSelling: _selectedReason,
+        additionalDetails: _additionalDetailsController.text.trim().isEmpty ? null : _additionalDetailsController.text.trim(),
+      );
+      success = await AdRepository.instance.updateAd(adToSave);
     } else {
-      AdRepository.instance.addAd(adToSave);
+      final newAd = await AdRepository.instance.createAd(
+        title: _titleController.text.trim(),
+        description: _descController.text.trim(),
+        price: price,
+        condition: _selectedCondition ?? 'Used',
+        categoryName: _selectedCategory?.name.replaceAll('\n', ' ') ?? 'Mobiles',
+        subcategoryName: _selectedSubcategory,
+        brand: _brandController.text.trim().isEmpty ? null : _brandController.text.trim(),
+        model: _modelController.text.trim().isEmpty ? null : _modelController.text.trim(),
+        reasonForSelling: _selectedReason,
+        additionalDetails: _additionalDetailsController.text.trim().isEmpty ? null : _additionalDetailsController.text.trim(),
+        location: _selectedLocation,
+        latitude: _selectedLatitude ?? LocationService.instance.selectedLocation.latitude,
+        longitude: _selectedLongitude ?? LocationService.instance.selectedLocation.longitude,
+        imageUrls: _selectedPhotos,
+      );
+      success = newAd != null;
+    }
+
+    setState(() {
+      _isSaving = false;
+    });
+
+    if (success) {
+      _nextStep();
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to submit ad. Please check backend connection.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -835,6 +868,9 @@ class _PostAdScreenState extends State<PostAdScreen> {
 
   // ── Step 6: Contact Info ───────────────────
   Widget _buildContactStep() {
+    final currentUser = AuthService.instance.currentUser;
+    final isPhoneValid = _phoneController.text.trim().length >= 10;
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -850,22 +886,54 @@ class _PostAdScreenState extends State<PostAdScreen> {
             style: AppTextStyles.productMeta,
           ),
           const SizedBox(height: 24),
-          ListTile(
-            leading: const CircleAvatar(
-              backgroundImage: NetworkImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80'),
-            ),
-            title: const Text('John Doe', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('+91 9876543210'),
-            trailing: const Icon(Icons.check_circle, color: Colors.green),
+          
+          // User Card showing logged in details
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundImage: NetworkImage(currentUser?.avatarUrl ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80'),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentUser?.name ?? 'Verified Seller',
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      currentUser?.email ?? '',
+                      style: AppTextStyles.productMeta,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const Divider(height: 24),
+          
+          const SizedBox(height: 24),
+          
+          // Input field for Phone Number
+          _buildFieldLabel('Phone Number', isRequired: true),
+          TextFormField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            onChanged: (val) => setState(() {}),
+            decoration: _buildInputDecoration(
+              hintText: 'Enter phone number (e.g. +91 98765 43210)',
+            ),
+          ),
+          
+          const Divider(height: 32),
           Row(
             children: [
               const Icon(Icons.shield_outlined, color: AppColors.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Your phone number will remain hidden until a buyer initiates contact.',
+                  'Buyers will be able to see this phone number to contact you regarding this ad.',
                   style: AppTextStyles.productMeta.copyWith(fontSize: 11),
                 ),
               ),
@@ -877,10 +945,21 @@ class _PostAdScreenState extends State<PostAdScreen> {
             height: 48,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: isPhoneValid ? AppColors.primary : AppColors.divider,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: _nextStep,
+              onPressed: isPhoneValid
+                  ? () async {
+                      // Save phone number to user profile
+                      final phone = _phoneController.text.trim();
+                      final messenger = ScaffoldMessenger.of(context);
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Updating contact info...'), duration: Duration(milliseconds: 1000)),
+                      );
+                      await AuthService.instance.updateProfile(phone: phone);
+                      _nextStep();
+                    }
+                  : null,
               child: const Text('Next', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ),
@@ -979,14 +1058,20 @@ class _PostAdScreenState extends State<PostAdScreen> {
                 backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: () {
-                _saveAdAndComplete();
-                _nextStep();
-              },
-              child: Text(
-                widget.adToEdit != null ? 'Save Changes' : 'Publish Now',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
+              onPressed: _isSaving ? null : _saveAdAndComplete,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : Text(
+                      widget.adToEdit != null ? 'Save Changes' : 'Publish Now',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],
