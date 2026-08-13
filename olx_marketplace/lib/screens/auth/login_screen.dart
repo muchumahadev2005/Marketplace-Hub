@@ -24,20 +24,39 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isEmailLoading = false;
   bool _isGoogleLoading = false;
+  bool _canSubmit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService.instance.addListener(_onAuthChanged);
+  }
+
+  void _onAuthChanged() {
+    if (AuthService.instance.isAuthenticated && mounted) {
+      // Pop back to root — ListenableBuilder in main.dart will show HomeScreen
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
 
   @override
   void dispose() {
+    AuthService.instance.removeListener(_onAuthChanged);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  bool get _isFormValid {
+  void _updateCanSubmit() {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    final emailValid = email.isNotEmpty && email.contains('@') && email.contains('.');
+    final emailValid = email.isNotEmpty &&
+        RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
     final passwordValid = password.length >= 6;
-    return emailValid && passwordValid;
+    final valid = emailValid && passwordValid;
+    if (valid != _canSubmit) {
+      setState(() => _canSubmit = valid);
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -64,6 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
+      // On success, _onAuthChanged listener handles navigation automatically
     }
   }
 
@@ -86,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
+      // On success, _onAuthChanged listener handles navigation automatically
     }
   }
 
@@ -118,7 +139,6 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
           child: Form(
             key: _formKey,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -154,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: 'Enter your email',
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => _updateCanSubmit(),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'Please enter a valid email';
@@ -178,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: 'Enter password',
                     controller: _passwordController,
                     isPassword: true,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => _updateCanSubmit(),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
                         return 'Password is required';
@@ -221,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // 6. Login Button
                 AuthPrimaryButton(
                   text: 'Login',
-                  isEnabled: _isFormValid,
+                  isEnabled: _canSubmit,
                   isLoading: _isEmailLoading,
                   onPressed: _handleLogin,
                 ),

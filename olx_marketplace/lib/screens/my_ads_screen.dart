@@ -7,8 +7,19 @@ import '../models/ad.dart';
 import '../services/ad_repository.dart';
 import 'post_ad_screen.dart';
 
-class MyAdsScreen extends StatelessWidget {
+class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
+
+  @override
+  State<MyAdsScreen> createState() => _MyAdsScreenState();
+}
+
+class _MyAdsScreenState extends State<MyAdsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AdRepository.instance.loadMyAds();
+  }
 
   void _showDeleteConfirmation(BuildContext context, Ad ad) {
     showDialog(
@@ -37,15 +48,19 @@ class MyAdsScreen extends StatelessWidget {
                 backgroundColor: Colors.red,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
-              onPressed: () {
-                AdRepository.instance.deleteAd(ad.id);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Ad deleted successfully'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final success = await AdRepository.instance.deleteAd(ad.id);
+                if (mounted) {
+                  navigator.pop();
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(success ? 'Ad deleted successfully' : 'Failed to delete ad'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               },
               child: Text(
                 'Delete',
@@ -85,15 +100,19 @@ class MyAdsScreen extends StatelessWidget {
                 backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
-              onPressed: () {
-                AdRepository.instance.markAsSold(ad.id);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Ad marked as Sold'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final success = await AdRepository.instance.markAsSold(ad.id);
+                if (mounted) {
+                  navigator.pop();
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(success ? 'Ad marked as Sold' : 'Failed to update status'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
               },
               child: Text(
                 'Confirm',

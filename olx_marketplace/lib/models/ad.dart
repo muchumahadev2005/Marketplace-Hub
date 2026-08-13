@@ -62,6 +62,79 @@ class Ad {
     this.userId = 'current_user',
   });
 
+  /// Create an Ad from the backend AdResponse JSON.
+  factory Ad.fromJson(Map<String, dynamic> json) {
+    final seller = json['seller'] as Map<String, dynamic>? ?? {};
+    final imagesList = json['images'] is List
+        ? List<String>.from(json['images'] as List)
+        : <String>[];
+    final imageUrl = (json['imageUrl'] as String?) ??
+        (imagesList.isNotEmpty ? imagesList.first : '');
+
+    // Map backend AdStatus enum → Flutter status string
+    final rawStatus = (json['status'] as String? ?? 'ACTIVE').toUpperCase();
+    final status = switch (rawStatus) {
+      'ACTIVE' => 'active',
+      'SOLD' => 'sold',
+      'PENDING' => 'pending',
+      _ => 'active',
+    };
+
+    // Map backend AdCondition enum → display string
+    final rawCondition = (json['condition'] as String? ?? 'USED').toUpperCase();
+    final condition = switch (rawCondition) {
+      'NEW' => 'New',
+      'LIKE_NEW' => 'Like New',
+      'GOOD' => 'Good',
+      'FAIR' => 'Fair',
+      'POOR' => 'Poor',
+      _ => 'Used',
+    };
+
+    final createdAt = json['createdAt'] != null
+        ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+        : DateTime.now();
+
+    return Ad(
+      id: json['id']?.toString() ?? '',
+      title: json['title'] ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      currency: '₹',
+      imageUrl: imageUrl,
+      images: imagesList,
+      condition: condition,
+      location: json['location'] ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      date: _formatDate(createdAt),
+      isFeatured: json['isFeatured'] == true || json['featured'] == true,
+      category: json['categoryName'] ?? '',
+      subcategory: json['subcategoryName'] as String?,
+      description: json['description'] ?? '',
+      brand: json['brand'] as String?,
+      model: json['model'] as String?,
+      reasonForSelling: json['reasonForSelling'] as String?,
+      additionalDetails: json['additionalDetails'] as String?,
+      sellerName: seller['name'] ?? 'Verified Seller',
+      sellerPhone: seller['phone'] ?? '+91 9876543210',
+      sellerImage: seller['profileImage'] ??
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80',
+      createdAt: createdAt,
+      status: status,
+      isFavorite: json['isFavorite'] == true || json['favorite'] == true,
+      userId: seller['id']?.toString() ?? 'current_user',
+    );
+  }
+
+  static String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
   /// Alias getter for requirement compliance
   String get locationName => location;
 

@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
+import '../models/chat.dart';
+import '../services/chat_service.dart';
+import '../services/auth_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -18,51 +22,90 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'sender': 'other',
-      'text': 'Hi, is this still available?',
-      'time': '10:40 AM',
-    },
-    {
-      'sender': 'me',
-      'text': 'Yes, it is! Are you interested?',
-      'time': '10:42 AM',
-    },
-    {
-      'sender': 'other',
-      'text': 'Is the price final? Can we deal at Rs 580,000?',
-      'time': '10:45 AM',
-    },
-  ];
-
+  final List<ChatMessage> _messages = [];
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Timer? _pollTimer;
+  bool _isLoading = false;
 
-  void _sendMessage() {
-    if (_controller.text.trim().isEmpty) return;
-    setState(() {
-      _messages.add({
-        'sender': 'me',
-        'text': _controller.text.trim(),
-        'time': 'Just now',
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages(showLoading: true);
+    // Poll for new messages every 3 seconds to simulate real-time chat
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _loadMessages());
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMessages({bool showLoading = false}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
       });
-      _controller.clear();
-    });
-    // Scroll to bottom
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
+    }
+
+    final list = await ChatService.instance.getMessages(widget.chatId);
+    if (mounted) {
+      final wasEmpty = _messages.isEmpty;
+      final oldLength = _messages.length;
+
+      setState(() {
+        _messages.clear();
+        _messages.addAll(list);
+        _isLoading = false;
+      });
+
+      // Scroll to bottom if new messages loaded or initially loaded
+      if (wasEmpty || _messages.length > oldLength) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    }
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    _controller.clear();
+
+    final sentMsg = await ChatService.instance.sendMessage(widget.chatId, text);
+    if (sentMsg != null) {
+      if (mounted) {
+        setState(() {
+          _messages.add(sentMsg);
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to send message.')),
         );
       }
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = AuthService.instance.currentUser?.id ?? '';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -92,64 +135,69 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isMe = msg['sender'] == 'me';
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isMe ? AppColors.primary : Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(12),
-                        topRight: const Radius.circular(12),
-                        bottomLeft: Radius.circular(isMe ? 12 : 0),
-                        bottomRight: Radius.circular(isMe ? 0 : 12),
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x0D000000),
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          msg['text'],
-                          style: AppTextStyles.productTitle.copyWith(
-                            color: isMe ? Colors.white : AppColors.textPrimary,
-                            fontWeight: FontWeight.normal,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Text(
-                            msg['time'],
-                            style: AppTextStyles.productMeta.copyWith(
-                              fontSize: 9,
-                              color: isMe ? Colors.white70 : AppColors.textMuted,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = _messages[index];
+                      final isMe = msg.senderId == currentUserId;
+                      final formattedTime =
+                          '${msg.createdAt.hour}:${msg.createdAt.minute.toString().padLeft(2, '0')}';
+
+                      return Align(
+                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isMe ? AppColors.primary : Colors.white,
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(12),
+                              topRight: const Radius.circular(12),
+                              bottomLeft: Radius.circular(isMe ? 12 : 0),
+                              bottomRight: Radius.circular(isMe ? 0 : 12),
                             ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x0D000000),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                msg.content,
+                                style: AppTextStyles.productTitle.copyWith(
+                                  color: isMe ? Colors.white : AppColors.textPrimary,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: Text(
+                                  formattedTime,
+                                  style: AppTextStyles.productMeta.copyWith(
+                                    fontSize: 9,
+                                    color: isMe ? Colors.white70 : AppColors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
           // Input bar
           Container(

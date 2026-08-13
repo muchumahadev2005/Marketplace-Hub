@@ -29,6 +29,8 @@ class _ListingScreenState extends State<ListingScreen> {
   List<String> _filters = [];
   String _currentSort = 'Lowest price';
   bool _isGridView = true;
+  List<Ad>? _searchResults;
+  bool _isSearching = false;
 
   @override
   void initState() {
@@ -37,13 +39,29 @@ class _ListingScreenState extends State<ListingScreen> {
       LocationService.instance.selectedLocation.shortName,
       if (widget.categoryName != null) widget.categoryName!,
     ];
+    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+      _fetchSearchResults();
+    }
+  }
+
+  Future<void> _fetchSearchResults() async {
+    setState(() {
+      _isSearching = true;
+    });
+    final results = await AdRepository.instance.fetchSearch(widget.searchQuery!);
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    }
   }
 
   List<Ad> _getFilteredProducts() {
     List<Ad> filtered;
 
     if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
-      filtered = AdRepository.instance.searchAds(widget.searchQuery!);
+      filtered = _searchResults ?? AdRepository.instance.searchAds(widget.searchQuery!);
     } else if (widget.categoryName != null && widget.categoryName != 'Featured' && widget.categoryName != 'Most Viewed') {
       filtered = AdRepository.instance.getAdsByCategory(widget.categoryName!);
     } else if (widget.categoryName == 'Featured') {
@@ -217,13 +235,17 @@ class _ListingScreenState extends State<ListingScreen> {
 
               // Main Product Feed
               Expanded(
-                child: products.isEmpty
+                child: _isSearching
                     ? const Center(
-                        child: Text('No results found. Try another search!'),
+                        child: CircularProgressIndicator(),
                       )
-                    : _isGridView
-                        ? _buildGridView(products)
-                        : _buildListView(products),
+                    : products.isEmpty
+                        ? const Center(
+                            child: Text('No results found. Try another search!'),
+                          )
+                        : _isGridView
+                            ? _buildGridView(products)
+                            : _buildListView(products),
               ),
             ],
           );
