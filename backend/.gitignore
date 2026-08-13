@@ -1,0 +1,18 @@
+# Target directory
+target/
+
+# .env configuration files
+.env
+!.env.example
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
