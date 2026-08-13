@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../models/ad.dart';
 import '../services/ad_repository.dart';
@@ -57,7 +58,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 backgroundColor: Colors.white.withValues(alpha: 0.8),
                 child: IconButton(
                   icon: const Icon(Icons.share_outlined, color: AppColors.textPrimary),
-                  onPressed: () {},
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(
+                      text: 'Check out this ${product.title} on OLX: ${product.formattedPrice} in ${product.location}',
+                    ));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ad details copied to clipboard!')),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 8),
