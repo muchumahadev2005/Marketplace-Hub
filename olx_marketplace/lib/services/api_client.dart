@@ -23,7 +23,7 @@ class ApiClient {
   /// Base URL: 10.0.2.2 for Android emulator, localhost everywhere else
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.191.57.17:8080/api';
+      return 'http://10.0.2.2:8080/api';
     }
     return 'http://localhost:8080/api';
   }
