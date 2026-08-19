@@ -73,6 +73,8 @@ public class Ad {
     @Builder.Default
     private boolean isFeatured = false;
 
+    private LocalDateTime featuredUntil;
+
     @Builder.Default
     private String promotionType = "NONE";
 

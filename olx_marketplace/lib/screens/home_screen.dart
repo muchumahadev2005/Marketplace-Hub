@@ -9,6 +9,7 @@ import '../models/ad.dart';
 import '../services/ad_repository.dart';
 import '../services/category_service.dart';
 import '../services/favorite_service.dart';
+import '../services/monetization_service.dart';
 import '../widgets/olx_app_bar.dart';
 import '../widgets/location_bar.dart';
 import '../widgets/category_card.dart';
@@ -26,6 +27,7 @@ import 'category_screen.dart';
 import 'listing_screen.dart';
 import 'product_details_screen.dart';
 import 'post_ad_screen.dart';
+import 'seller_dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -45,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     AdRepository.instance.loadHomeData();
     CategoryService.instance.loadCategories();
     FavoriteService.instance.loadFavorites();
+    MonetizationService.instance.fetchBanners();
   }
 
   void _openPostAd() async {
@@ -129,6 +132,49 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeContent() {
+    // Show loading spinner on first load
+    if (AdRepository.instance.isLoading && !AdRepository.instance.isLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Show error + retry when backend is unreachable and no ads are cached
+    if (AdRepository.instance.error != null && AdRepository.instance.getAllAds().isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.cloud_off_outlined, size: 64, color: AppColors.textMuted),
+              const SizedBox(height: 16),
+              Text(
+                'Could not connect to server',
+                style: AppTextStyles.sectionTitle.copyWith(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Make sure the backend is running and try again.',
+                style: AppTextStyles.productMeta,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => AdRepository.instance.loadHomeData(forceReload: true),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final featuredAds = AdRepository.instance.getFeaturedAds();
     final mobileAds = AdRepository.instance.getAdsByCategory('Mobiles');
     final activeAds = AdRepository.instance.getActiveAds();
@@ -426,99 +472,114 @@ class _NikeAdBanner extends StatelessWidget {
   const _NikeAdBanner();
 
   @override
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      height: 100,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        color: const Color(0xFF1A1A2E),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 180,
-            child: CachedNetworkImage(
-              imageUrl: MockData.nikeAdImageUrl,
-              fit: BoxFit.cover,
-              placeholder: (context, url) =>
-                  Container(color: const Color(0xFF1A1A2E)),
-              errorWidget: (context, url, error) =>
-                  Container(color: const Color(0xFF1A1A2E)),
+    return ListenableBuilder(
+      listenable: MonetizationService.instance,
+      builder: (context, _) {
+        final banners = MonetizationService.instance.banners;
+        final hasBanners = banners.isNotEmpty;
+        final banner = hasBanners ? banners.first : null;
+
+        final title = banner?.title ?? 'Sell Faster on OLX!';
+        final desc = banner?.description ?? 'Promote your ad to get up to 10x more buyer leads.';
+        final img = banner?.imageUrl ?? 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80';
+
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SellerDashboardScreen()),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            height: 100,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              color: const Color(0xFF1A1A2E),
             ),
-          ),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF1A1A2E),
-                  Color(0xCC1A1A2E),
-                  Colors.transparent,
-                ],
-                stops: [0.0, 0.55, 1.0],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.start,
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(4),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 180,
+                  child: CachedNetworkImage(
+                    imageUrl: img,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(color: const Color(0xFF1A1A2E)),
+                    errorWidget: (context, url, error) => Container(color: const Color(0xFF1A1A2E)),
                   ),
-                  child: Text(
-                    'Ad',
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w500,
-                      height: 1.1,
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFF1A1A2E),
+                        Color(0xCC1A1A2E),
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.55, 1.0],
                     ),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Nike',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.1,
-                  ),
-                ),
-                Text(
-                  'Free Metcon',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '₹ 12,099',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.featuredBadge,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'PROMOTION ⭐',
+                          style: GoogleFonts.poppins(
+                            fontSize: 9,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        title,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        desc,
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.white70,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

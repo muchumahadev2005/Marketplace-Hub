@@ -6,6 +6,7 @@ import '../core/theme.dart';
 import '../models/ad.dart';
 import '../services/ad_repository.dart';
 import 'post_ad_screen.dart';
+import 'promote_ad_screen.dart';
 
 class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
@@ -301,10 +302,38 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                 ),
                 const Divider(height: 20, color: AppColors.divider),
                 
-                // Action Buttons: Edit, Mark as Sold, Delete
+                // Action Buttons: Promote, Edit, Mark as Sold, Delete
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    // Promote Button (only if active)
+                    if (ad.status == 'active') ...[
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          backgroundColor: AppColors.primary,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.campaign, size: 14, color: Colors.white),
+                        label: Text(
+                          ad.isFeatured ? 'Promoted ⭐' : 'Promote ⭐',
+                          style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PromoteAdScreen(ad: ad),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+
                     // Edit Button
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(

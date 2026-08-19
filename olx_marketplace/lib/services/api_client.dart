@@ -65,7 +65,8 @@ class ApiClient {
 
   // ── Response unwrapping ────────────────────────────────────────────
   dynamic _unwrap(http.Response response) {
-    if (response.statusCode == 401) {
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      clearToken();
       throw UnauthorizedException();
     }
     dynamic body;
@@ -80,7 +81,10 @@ class ApiClient {
         response.statusCode,
       );
     }
-    return body is Map ? body['data'] : body;
+    if (body is Map && body.containsKey('data')) {
+      return body['data'];
+    }
+    return body;
   }
 
   // ── HTTP methods ───────────────────────────────────────────────────

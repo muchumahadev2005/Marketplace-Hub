@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../models/ad.dart';
 import '../services/ad_repository.dart';
+import '../services/auth_service.dart';
 import '../services/favorite_service.dart';
 import '../services/chat_service.dart';
 import 'chat_screen.dart';
 import 'map_view_screen.dart';
+import 'promote_ad_screen.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Ad product;
@@ -299,69 +301,90 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           color: Colors.white,
           border: Border(top: BorderSide(color: AppColors.divider)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 48,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primary, width: 2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  icon: const Icon(Icons.call, color: AppColors.primary, size: 18),
-                  label: const Text('Call Seller', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Phone: ${product.sellerPhone}')),
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
+        child: (AuthService.instance.currentUser != null &&
+                (product.userId == AuthService.instance.currentUser!.id ||
+                 product.sellerName == AuthService.instance.currentUser!.name))
+            ? SizedBox(
                 height: 48,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
-                  label: const Text('Chat Seller', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  onPressed: () async {
-                    // Show loading
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Starting chat...'), duration: Duration(milliseconds: 1500)),
+                  icon: const Icon(Icons.campaign, color: Colors.white, size: 20),
+                  label: const Text('Promote This Ad ⭐', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PromoteAdScreen(ad: product),
+                      ),
                     );
-                    final room = await ChatService.instance.getOrCreateRoom(product.id);
-                    if (room != null) {
-                      if (context.mounted) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatScreen(
-                              chatId: room.id,
-                              userName: room.otherUserName,
-                              productName: room.adTitle,
-                            ),
-                          ),
-                        );
-                      }
-                    } else {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Could not start chat. Are you logged in?')),
-                        );
-                      }
-                    }
                   },
                 ),
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.primary, width: 2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.call, color: AppColors.primary, size: 18),
+                        label: const Text('Call Seller', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Phone: ${product.sellerPhone}')),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 18),
+                        label: const Text('Chat Seller', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Starting chat...'), duration: Duration(milliseconds: 1500)),
+                          );
+                          final room = await ChatService.instance.getOrCreateRoom(product.id);
+                          if (room != null) {
+                            if (context.mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChatScreen(
+                                    chatId: room.id,
+                                    userName: room.otherUserName,
+                                    productName: room.adTitle,
+                                  ),
+                                ),
+                              );
+                            }
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not start chat. Are you logged in?')),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

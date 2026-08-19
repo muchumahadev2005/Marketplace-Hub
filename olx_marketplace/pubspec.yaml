@@ -47,10 +47,14 @@ dependencies:
   http: ^1.2.0
   shared_preferences: ^2.2.2
 
+  # Image Picker (camera / gallery) for ad photo upload
+  image_picker: ^1.0.7
+
   # OpenStreetMap & Location
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   geolocator: ^13.0.2
+  razorpay_flutter: ^1.4.5
 
 dev_dependencies:
   flutter_test:

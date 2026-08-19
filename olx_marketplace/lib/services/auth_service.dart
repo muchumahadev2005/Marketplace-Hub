@@ -47,11 +47,27 @@ class AuthService extends ChangeNotifier {
   Future<void> init() async {
     await ApiClient.instance.init();
     if (ApiClient.instance.hasToken) {
-      // Token exists — restore auth state (user will be populated lazily)
+      // Token exists — restore auth state immediately (before async fetch)
       _isAuthenticated = true;
-      // Restore basic user info from token claims if needed
-      _tryRestoreUserFromToken();
+      _tryRestoreUserFromToken(); // populate minimal user from JWT claims
       notifyListeners();
+      // Fetch full user profile from backend in background
+      _fetchUserProfile();
+    }
+  }
+
+  /// Fetch full user profile from /api/users/me and update _currentUser.
+  Future<void> _fetchUserProfile() async {
+    try {
+      final data = await ApiClient.instance.get('/users/me', auth: true);
+      if (data is Map<String, dynamic>) {
+        final email = data['email'] as String? ?? _currentUser?.email ?? '';
+        _currentUser = _userFromJson(data, email);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('AuthService._fetchUserProfile error: $e');
+      // Non-critical — keep whatever was restored from JWT
     }
   }
 

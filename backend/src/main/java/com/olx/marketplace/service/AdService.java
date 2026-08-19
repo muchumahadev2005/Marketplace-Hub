@@ -24,9 +24,19 @@ public class AdService {
 
     private final AdRepository adRepository;
     private final CategoryRepository categoryRepository;
+    private final SubscriptionService subscriptionService;
 
     @Transactional
     public AdResponse createAd(User seller, CreateAdRequest request) {
+        // Enforce Seller Plan Active Ad Limit
+        int activeAdsCount = adRepository.findBySellerIdAndStatusOrderByCreatedAtDesc(seller.getId(), AdStatus.ACTIVE).size();
+        int adLimit = subscriptionService.getAdLimitForPlan(seller.getSellerType());
+
+        if (activeAdsCount >= adLimit) {
+            throw new BadRequestException("Active ad limit reached (" + activeAdsCount + "/" + adLimit + ") for your " +
+                    (seller.getSellerType() != null ? seller.getSellerType() : "FREE") + " plan. Upgrade your plan to post more ads!");
+        }
+
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + request.getCategoryId()));
 

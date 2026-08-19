@@ -84,7 +84,6 @@ class AppTextStyles {
     color: AppColors.textSecondary,
     height: 1.3,
   );
-
   // -- Featured badge on product image
   static final TextStyle featuredLabel = GoogleFonts.poppins(
     fontSize: 10,

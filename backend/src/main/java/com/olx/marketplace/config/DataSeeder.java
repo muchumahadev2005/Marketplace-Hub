@@ -21,11 +21,23 @@ public class DataSeeder implements CommandLineRunner {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final FavoriteRepository favoriteRepository;
+    private final PromotionPlanRepository promotionPlanRepository;
+    private final PromotionBannerRepository promotionBannerRepository;
     private final PasswordEncoder passwordEncoder;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional
     public void run(String... args) throws Exception {
+        try {
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS seller_type VARCHAR(255) DEFAULT 'FREE'");
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS business_name VARCHAR(255)");
+            jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS business_verified BOOLEAN DEFAULT FALSE");
+            jdbcTemplate.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS featured_until TIMESTAMP");
+        } catch (Exception e) {
+            // Ignore if columns already exist or DDL handled
+        }
+
         boolean hasCategoryImages = categoryRepository.findAll().stream()
                 .anyMatch(c -> c.getImageUrl() != null && !c.getImageUrl().isEmpty());
         if (categoryRepository.count() == 0 || !hasCategoryImages) {
@@ -46,6 +58,12 @@ public class DataSeeder implements CommandLineRunner {
             favoriteRepository.deleteAll();
             adRepository.deleteAll();
             seedAds();
+        }
+        if (promotionPlanRepository.count() == 0) {
+            seedPromotionPlans();
+        }
+        if (promotionBannerRepository.count() == 0) {
+            seedPromotionBanners();
         }
     }
 
@@ -220,5 +238,61 @@ public class DataSeeder implements CommandLineRunner {
                 .parentCategory(parent)
                 .build();
         return categoryRepository.save(category);
+    }
+
+    private void seedPromotionPlans() {
+        promotionPlanRepository.save(PromotionPlan.builder()
+                .name("Featured (3 Days)")
+                .type(PromotionType.FEATURED)
+                .durationDays(3)
+                .price(new BigDecimal("99"))
+                .description("Get 5x more views with a Featured badge on search results & home feed.")
+                .active(true)
+                .build());
+
+        promotionPlanRepository.save(PromotionPlan.builder()
+                .name("Featured (7 Days)")
+                .type(PromotionType.FEATURED)
+                .durationDays(7)
+                .price(new BigDecimal("199"))
+                .description("Maximize buyer inquiries with 7 days of prime Featured positioning.")
+                .active(true)
+                .build());
+
+        promotionPlanRepository.save(PromotionPlan.builder()
+                .name("Boost Ad (3 Days)")
+                .type(PromotionType.BOOST)
+                .durationDays(3)
+                .price(new BigDecimal("149"))
+                .description("Instantly bump your ad to the top of category listings.")
+                .active(true)
+                .build());
+
+        promotionPlanRepository.save(PromotionPlan.builder()
+                .name("Top Placement (24 Hours)")
+                .type(PromotionType.TOP_PLACEMENT)
+                .durationDays(1)
+                .price(new BigDecimal("299"))
+                .description("Guaranteed #1 placement at the very top of relevant search results for 24 hours.")
+                .active(true)
+                .build());
+    }
+
+    private void seedPromotionBanners() {
+        promotionBannerRepository.save(PromotionBanner.builder()
+                .title("Sell Faster with Featured Ads!")
+                .description("Promote your ad today and get up to 10x more buyer responses.")
+                .imageUrl("https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80")
+                .targetUrl("/api/promotions/plans")
+                .active(true)
+                .build());
+
+        promotionBannerRepository.save(PromotionBanner.builder()
+                .title("Upgrade to Business Seller")
+                .description("Post up to 100 ads, get a verified badge, and dedicated support.")
+                .imageUrl("https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80")
+                .targetUrl("/api/subscriptions/plans")
+                .active(true)
+                .build());
     }
 }

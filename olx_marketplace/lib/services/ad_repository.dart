@@ -193,7 +193,9 @@ class AdRepository extends ChangeNotifier {
     required double price,
     required String condition,
     required String categoryName,
+    int? categoryId,
     String? subcategoryName,
+    int? subcategoryId,
     String? brand,
     String? model,
     String? reasonForSelling,
@@ -215,16 +217,14 @@ class AdRepository extends ChangeNotifier {
       _ => 'GOOD',
     };
 
-    // We need the numeric categoryId from backend.
-    // For now we use 1 as default and let backend resolve.
-    // TODO: Integrate CategoryService.instance to get real IDs.
     final body = {
       'title': title,
       'description': description,
       'price': price,
       'condition': conditionEnum,
-      'categoryId': 1,   // Will be improved when CategoryService IDs are used
+      'categoryId': categoryId ?? 1,
       'location': location,
+      if (subcategoryId != null) 'subcategoryId': subcategoryId,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (brand != null && brand.isNotEmpty) 'brand': brand,
@@ -268,8 +268,9 @@ class AdRepository extends ChangeNotifier {
       'description': updatedAd.description,
       'price': updatedAd.price,
       'condition': conditionEnum,
-      'categoryId': 1,
+      'categoryId': updatedAd.categoryId ?? 1,
       'location': updatedAd.location,
+      if (updatedAd.subcategoryId != null) 'subcategoryId': updatedAd.subcategoryId,
       if (updatedAd.latitude != null) 'latitude': updatedAd.latitude,
       if (updatedAd.longitude != null) 'longitude': updatedAd.longitude,
       if (updatedAd.brand != null) 'brand': updatedAd.brand,
