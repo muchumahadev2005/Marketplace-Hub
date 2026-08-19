@@ -1,4 +1,3 @@
-﻿# Marketplace-Hub
  # Marketplace Hub
 
 A full-stack, OLX-style classifieds marketplace where users can browse categories, post ads with images and location, chat with sellers in real time, and manage favorites — built with a **Spring Boot** REST API backend and a **Flutter** cross-platform frontend.
