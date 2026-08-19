@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
+import 'app_logo.dart';
 
 // ─────────────────────────────────────────────
 //  OLX APP BAR
@@ -10,17 +10,17 @@ import '../core/theme.dart';
 // ─────────────────────────────────────────────
 
 class OlxAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback? onSearchTap;
   final VoidCallback? onCategoryTap;
+  final VoidCallback? onSearchTap;
 
   const OlxAppBar({
     super.key,
-    this.onSearchTap,
     this.onCategoryTap,
+    this.onSearchTap,
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,7 @@ class OlxAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const _OlxLogo(),
+          const AppLogo(fontSize: 22),
           const SizedBox(width: 10),
           _CategoryDropdown(onTap: onCategoryTap),
         ],
@@ -54,53 +54,6 @@ class OlxAppBar extends StatelessWidget implements PreferredSizeWidget {
           splashRadius: 20,
         ),
         const SizedBox(width: 4),
-      ],
-    );
-  }
-}
-
-// ── OLX Logo ─────────────────────────────────
-// Reproduces the "o|lx" logo: a blue circle (with white hole = letter "O")
-// followed by "lx" in bold blue Poppins.
-class _OlxLogo extends StatelessWidget {
-  const _OlxLogo();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // The "O": blue circle with white circle inside
-        Container(
-          width: 26,
-          height: 26,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Container(
-              width: 11,
-              height: 11,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 2),
-        // "lx" text
-        Text(
-          'lx',
-          style: GoogleFonts.poppins(
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primary,
-            height: 1.1,
-          ),
-        ),
       ],
     );
   }

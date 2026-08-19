@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../core/theme.dart';
-import '../data/mock_data.dart';
 import '../models/ad.dart';
 import '../models/location_data.dart';
 import '../services/ad_repository.dart';
+import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/category_service.dart';
 import '../services/location_service.dart';
 import 'location_screen.dart';
 import 'map_picker_screen.dart';
@@ -30,7 +32,11 @@ class _PostAdScreenState extends State<PostAdScreen> {
   // Form controllers & states
   Category? _selectedCategory;
   String? _selectedSubcategory;
-  List<String> _selectedPhotos = [];
+  int? _selectedSubcategoryId;
+  List<String> _selectedPhotos = [];      // Final URLs (after upload)
+  bool _isUploadingPhotos = false;
+  List<Category> _subcategories = [];     // Loaded from backend
+  bool _isLoadingSubcategories = false;
   String _selectedLocation = 'Gulberg Phase 4, Lahore';
   double? _selectedLatitude;
   double? _selectedLongitude;
@@ -51,14 +57,6 @@ class _PostAdScreenState extends State<PostAdScreen> {
   final List<String> _conditionOptions = ['New', 'Like New', 'Used', 'Refurbished'];
   final List<String> _reasonOptions = ['Upgrading', 'Not using', 'Moving', 'Need money', 'Other'];
 
-  // Available mock photos to pick
-  final List<String> _mockPhotoOptions = [
-    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&q=80',
-    'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80',
-    'https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=400&q=80',
-    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80',
-    'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&q=80',
-  ];
 
   @override
   void initState() {
@@ -84,10 +82,16 @@ class _PostAdScreenState extends State<PostAdScreen> {
     _selectedPhotos = edit != null ? List.from(edit.images) : [];
 
     if (edit != null) {
-      _selectedCategory = MockData.categories.firstWhere(
-        (c) => c.name.replaceAll('\n', ' ').toLowerCase() == edit.category.toLowerCase(),
-        orElse: () => MockData.categories.first,
-      );
+      // Find matching category from the backend-loaded list, or mock data as fallback
+      final allCats = CategoryService.instance.categories.isNotEmpty
+          ? CategoryService.instance.categories
+          : <Category>[];
+      if (allCats.isNotEmpty) {
+        _selectedCategory = allCats.firstWhere(
+          (c) => c.name.replaceAll('\n', ' ').toLowerCase() == edit.category.toLowerCase(),
+          orElse: () => allCats.first,
+        );
+      }
     }
   }
 
@@ -147,14 +151,17 @@ class _PostAdScreenState extends State<PostAdScreen> {
 
   Future<void> _saveAdAndComplete() async {
     if (_isSaving) return;
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() { _isSaving = true; });
 
     final double price = double.tryParse(_priceController.text.trim()) ?? 0.0;
     final mainImage = _selectedPhotos.isNotEmpty
         ? _selectedPhotos[0]
         : 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400&q=80';
+
+    // Resolve numeric categoryId from the selected Category object
+    final int? categoryId = _selectedCategory != null
+        ? int.tryParse(_selectedCategory!.id)
+        : null;
 
     bool success = false;
     if (widget.adToEdit != null) {
@@ -167,8 +174,10 @@ class _PostAdScreenState extends State<PostAdScreen> {
         location: _selectedLocation,
         latitude: _selectedLatitude ?? LocationService.instance.selectedLocation.latitude,
         longitude: _selectedLongitude ?? LocationService.instance.selectedLocation.longitude,
-        category: _selectedCategory?.name.replaceAll('\n', ' ') ?? 'Mobiles',
+        category: _selectedCategory?.name.replaceAll('\n', ' ') ?? widget.adToEdit!.category,
+        categoryId: categoryId ?? widget.adToEdit!.categoryId,
         subcategory: _selectedSubcategory,
+        subcategoryId: _selectedSubcategoryId,
         description: _descController.text.trim(),
         brand: _brandController.text.trim().isEmpty ? null : _brandController.text.trim(),
         model: _modelController.text.trim().isEmpty ? null : _modelController.text.trim(),
@@ -183,7 +192,9 @@ class _PostAdScreenState extends State<PostAdScreen> {
         price: price,
         condition: _selectedCondition ?? 'Used',
         categoryName: _selectedCategory?.name.replaceAll('\n', ' ') ?? 'Mobiles',
+        categoryId: categoryId,
         subcategoryName: _selectedSubcategory,
+        subcategoryId: _selectedSubcategoryId,
         brand: _brandController.text.trim().isEmpty ? null : _brandController.text.trim(),
         model: _modelController.text.trim().isEmpty ? null : _modelController.text.trim(),
         reasonForSelling: _selectedReason,
@@ -196,9 +207,7 @@ class _PostAdScreenState extends State<PostAdScreen> {
       success = newAd != null;
     }
 
-    setState(() {
-      _isSaving = false;
-    });
+    setState(() { _isSaving = false; });
 
     if (success) {
       _nextStep();
@@ -262,8 +271,12 @@ class _PostAdScreenState extends State<PostAdScreen> {
     );
   }
 
-  // ── Step 1: Category ───────────────────────
+  // ── Step 1: Category ─────────────────────────
   Widget _buildCategoryStep() {
+    // Use backend categories; fall back to empty if still loading
+    final cats = CategoryService.instance.categories;
+    final isLoading = CategoryService.instance.isLoading && cats.isEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -285,38 +298,74 @@ class _PostAdScreenState extends State<PostAdScreen> {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: MockData.categories.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
-            itemBuilder: (context, index) {
-              final cat = MockData.categories[index];
-              final isSelected = _selectedCategory?.id == cat.id;
-              return ListTile(
-                title: Text(
-                  cat.name.replaceAll('\n', ' '),
-                  style: AppTextStyles.productTitle.copyWith(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                  ),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: isSelected ? AppColors.primary : AppColors.textMuted,
-                  size: 20,
-                ),
-                onTap: () {
-                  setState(() {
-                    _selectedCategory = cat;
-                  });
-                  _nextStep();
-                },
-              );
-            },
-          ),
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : cats.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.category_outlined, size: 48, color: AppColors.textMuted),
+                          const SizedBox(height: 12),
+                          Text('No categories found', style: AppTextStyles.productMeta),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () => CategoryService.instance.loadCategories(forceReload: true),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: cats.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
+                      itemBuilder: (context, index) {
+                        final cat = cats[index];
+                        final isSelected = _selectedCategory?.id == cat.id;
+                        return ListTile(
+                          title: Text(
+                            cat.name.replaceAll('\n', ' '),
+                            style: AppTextStyles.productTitle.copyWith(
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                            ),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: isSelected ? AppColors.primary : AppColors.textMuted,
+                            size: 20,
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory = cat;
+                              // Reset subcategory when category changes
+                              _selectedSubcategory = null;
+                              _selectedSubcategoryId = null;
+                              _subcategories = [];
+                            });
+                            // Load subcategories for selected category
+                            _loadSubcategories(cat.id);
+                            _nextStep();
+                          },
+                        );
+                      },
+                    ),
         ),
       ],
     );
+  }
+
+  /// Load subcategories from backend for a given parent category ID.
+  Future<void> _loadSubcategories(String categoryId) async {
+    setState(() { _isLoadingSubcategories = true; });
+    final subs = await CategoryService.instance.getSubcategories(categoryId);
+    if (mounted) {
+      setState(() {
+        _subcategories = subs;
+        _isLoadingSubcategories = false;
+      });
+    }
   }
 
   // ── Step 2: Photos ─────────────────────────
@@ -332,92 +381,80 @@ class _PostAdScreenState extends State<PostAdScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Add up to 4 photos. Tap mock photos below to simulate adding pictures.',
+            'Add up to 4 photos from your gallery or take a new one.',
             style: AppTextStyles.productMeta,
           ),
           const SizedBox(height: 20),
+
+          // Photo slots row
           Row(
             children: List.generate(4, (index) {
               final hasPhoto = index < _selectedPhotos.length;
               return Expanded(
-                child: Container(
-                  height: 85,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.searchBarBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: hasPhoto
-                      ? Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(_selectedPhotos[index], fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 3,
-                              right: 3,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedPhotos.removeAt(index);
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.6),
-                                    shape: BoxShape.circle,
+                child: GestureDetector(
+                  onTap: _isUploadingPhotos ? null : _pickAndUploadPhoto,
+                  child: Container(
+                    height: 85,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.searchBarBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: hasPhoto
+                        ? Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(_selectedPhotos[index], fit: BoxFit.cover),
+                              ),
+                              Positioned(
+                                top: 3,
+                                right: 3,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() { _selectedPhotos.removeAt(index); });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.6),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close, color: Colors.white, size: 12),
                                   ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 12),
                                 ),
                               ),
-                            ),
-                          ],
-                        )
-                      : const Center(
-                          child: Icon(Icons.camera_alt_outlined, color: AppColors.textMuted, size: 26),
-                        ),
+                            ],
+                          )
+                        : _isUploadingPhotos && index == _selectedPhotos.length
+                            ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)))
+                            : const Center(
+                                child: Icon(Icons.add_a_photo_outlined, color: AppColors.textMuted, size: 26),
+                              ),
+                  ),
                 ),
               );
             }),
           ),
-          const SizedBox(height: 30),
-          Text('Mock Photos (Tap to add):', style: AppTextStyles.sectionTitle),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 70,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _mockPhotoOptions.length,
-              itemBuilder: (context, index) {
-                final url = _mockPhotoOptions[index];
-                return GestureDetector(
-                  onTap: () {
-                    if (_selectedPhotos.length < 4) {
-                      setState(() {
-                        _selectedPhotos.add(url);
-                      });
-                    }
-                  },
-                  child: Container(
-                    width: 70,
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.divider, width: 1.5),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
-                      child: Image.network(url, fit: BoxFit.cover),
-                    ),
-                  ),
-                );
-              },
+
+          const SizedBox(height: 20),
+          // Add photo button
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              side: const BorderSide(color: AppColors.primary),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            icon: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+            label: Text(
+              _isUploadingPhotos ? 'Uploading...' : 'Select from Gallery',
+              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+            ),
+            onPressed: (_isUploadingPhotos || _selectedPhotos.length >= 4) ? null : _pickAndUploadPhoto,
           ),
+
           const Spacer(),
           SizedBox(
             width: double.infinity,
@@ -436,9 +473,41 @@ class _PostAdScreenState extends State<PostAdScreen> {
     );
   }
 
-  // ── Step 3: Quick Specs ────────────────────
+  /// Picks a photo from the device gallery and uploads it to the backend.
+  Future<void> _pickAndUploadPhoto() async {
+    if (_selectedPhotos.length >= 4) return;
+
+    final picker = ImagePicker();
+    final XFile? file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1280,
+    );
+    if (file == null || !mounted) return;
+
+    setState(() { _isUploadingPhotos = true; });
+
+    try {
+      // Upload the image to the backend file storage
+      final urls = await ApiClient.instance.uploadImages([file.path]);
+      if (urls.isNotEmpty && mounted) {
+        setState(() {
+          _selectedPhotos.addAll(urls);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() { _isUploadingPhotos = false; });
+    }
+  }
+
+  // ── Step 3: Quick Specs ────────────────────────
   Widget _buildQuickSpecsStep() {
-    final subcategories = ['Smartphones', 'Tablets', 'Accessories', 'Smart Watches', 'Laptops'];
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -455,22 +524,38 @@ class _PostAdScreenState extends State<PostAdScreen> {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: ListView.builder(
-              itemCount: subcategories.length,
-              itemBuilder: (context, index) {
-                final sub = subcategories[index];
-                final isSelected = _selectedSubcategory == sub;
-                return ListTile(
-                  title: Text(sub, style: AppTextStyles.productTitle),
-                  trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
-                  onTap: () {
-                    setState(() {
-                      _selectedSubcategory = sub;
-                    });
-                  },
-                );
-              },
-            ),
+            child: _isLoadingSubcategories
+                ? const Center(child: CircularProgressIndicator())
+                : _subcategories.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.subdirectory_arrow_right, size: 48, color: AppColors.textMuted),
+                            const SizedBox(height: 12),
+                            Text('No subcategories available.', style: AppTextStyles.productMeta),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _subcategories.length,
+                        itemBuilder: (context, index) {
+                          final sub = _subcategories[index];
+                          final isSelected = _selectedSubcategoryId == int.tryParse(sub.id);
+                          return ListTile(
+                            title: Text(sub.name, style: AppTextStyles.productTitle),
+                            trailing: isSelected
+                                ? const Icon(Icons.check, color: AppColors.primary)
+                                : null,
+                            onTap: () {
+                              setState(() {
+                                _selectedSubcategory = sub.name;
+                                _selectedSubcategoryId = int.tryParse(sub.id);
+                              });
+                            },
+                          );
+                        },
+                      ),
           ),
           SizedBox(
             width: double.infinity,

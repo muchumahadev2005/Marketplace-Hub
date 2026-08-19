@@ -17,7 +17,9 @@ class Ad {
   final String date;
   final bool isFeatured;
   final String category;
+  final int? categoryId;       // Numeric backend ID — used when posting/updating
   final String? subcategory;
+  final int? subcategoryId;    // Numeric backend subcategory ID
   final String description;
   final String? brand;
   final String? model;
@@ -46,7 +48,9 @@ class Ad {
     required this.date,
     this.isFeatured = false,
     required this.category,
+    this.categoryId,
     this.subcategory,
+    this.subcategoryId,
     required this.description,
     this.brand,
     this.model,
@@ -109,7 +113,9 @@ class Ad {
       date: _formatDate(createdAt),
       isFeatured: json['isFeatured'] == true || json['featured'] == true,
       category: json['categoryName'] ?? '',
+      categoryId: (json['categoryId'] as num?)?.toInt(),
       subcategory: json['subcategoryName'] as String?,
+      subcategoryId: (json['subcategoryId'] as num?)?.toInt(),
       description: json['description'] ?? '',
       brand: json['brand'] as String?,
       model: json['model'] as String?,
@@ -169,7 +175,9 @@ class Ad {
     String? date,
     bool? isFeatured,
     String? category,
+    int? categoryId,
     String? subcategory,
+    int? subcategoryId,
     String? description,
     String? brand,
     String? model,
@@ -198,7 +206,9 @@ class Ad {
       date: date ?? this.date,
       isFeatured: isFeatured ?? this.isFeatured,
       category: category ?? this.category,
+      categoryId: categoryId ?? this.categoryId,
       subcategory: subcategory ?? this.subcategory,
+      subcategoryId: subcategoryId ?? this.subcategoryId,
       description: description ?? this.description,
       brand: brand ?? this.brand,
       model: model ?? this.model,

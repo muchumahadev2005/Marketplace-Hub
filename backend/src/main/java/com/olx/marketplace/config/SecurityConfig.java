@@ -47,6 +47,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            .cors(org.springframework.security.config.Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
@@ -57,12 +58,17 @@ public class SecurityConfig {
                     "/api/auth/**",
                     "/api/categories/**",
                     "/api/ads",
-                    "/api/ads/*",
-                    "/api/ads/category/**",
+                    "/api/ads/search",
                     "/api/ads/search/**",
+                    "/api/ads/category/**",
                     "/api/home/**",
+                    "/api/promotions/plans",
+                    "/api/subscriptions/plans",
+                    "/api/banners/**",
                     "/uploads/**"
                 ).permitAll()
+                // Individual ad by numeric ID is public; /api/ads/my requires auth
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/ads/{id:[0-9]+}").permitAll()
                 .anyRequest().authenticated()
             );
 

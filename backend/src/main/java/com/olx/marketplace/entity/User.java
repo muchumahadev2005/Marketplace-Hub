@@ -42,6 +42,14 @@ public class User implements UserDetails {
 
     private String location;
 
+    @Builder.Default
+    private String sellerType = "FREE";
+
+    private String businessName;
+
+    @Builder.Default
+    private boolean businessVerified = false;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

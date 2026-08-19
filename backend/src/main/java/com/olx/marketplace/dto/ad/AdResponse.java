@@ -41,6 +41,7 @@ public class AdResponse {
     private Double longitude;
     private AdStatus status;
     private boolean isFeatured;
+    private LocalDateTime featuredUntil;
     private String promotionType;
     private Integer views;
     private UserResponse seller;
@@ -87,6 +88,7 @@ public class AdResponse {
                 .longitude(ad.getLongitude())
                 .status(ad.getStatus())
                 .isFeatured(ad.isFeatured())
+                .featuredUntil(ad.getFeaturedUntil())
                 .promotionType(ad.getPromotionType())
                 .views(ad.getViews())
                 .seller(UserResponse.fromEntity(ad.getSeller()))

@@ -5,6 +5,8 @@ import '../core/theme.dart';
 import '../services/auth_service.dart';
 import 'my_ads_screen.dart';
 import 'chats_screen.dart';
+import 'my_promotions_screen.dart';
+import 'seller_dashboard_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -125,7 +127,18 @@ class AccountScreen extends StatelessWidget {
 
                 // Main Menu Sections
                 _buildMenuSection([
-                  _buildMenuItem(Icons.person_outline, 'My Profile', () {}),
+                  _buildMenuItem(Icons.dashboard_customize_outlined, 'Seller Dashboard ⭐', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SellerDashboardScreen()),
+                    );
+                  }),
+                  _buildMenuItem(Icons.campaign_outlined, 'My Promotions ⭐', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const MyPromotionsScreen()),
+                    );
+                  }),
                   _buildMenuItem(Icons.inventory_2_outlined, 'My Ads', () {
                     Navigator.push(
                       context,

@@ -35,7 +35,8 @@ public interface AdRepository extends JpaRepository<Ad, Long> {
             "(:minPrice IS NULL OR a.price >= :minPrice) AND " +
             "(:maxPrice IS NULL OR a.price <= :maxPrice) AND " +
             "(:condition IS NULL OR a.condition = :condition) AND " +
-            "(:location IS NULL OR LOWER(a.location) LIKE :location)")
+            "(:location IS NULL OR LOWER(a.location) LIKE :location) " +
+            "ORDER BY a.isFeatured DESC, a.createdAt DESC")
     Page<Ad> searchAds(
             @Param("status") AdStatus status,
             @Param("keyword") String keyword,
